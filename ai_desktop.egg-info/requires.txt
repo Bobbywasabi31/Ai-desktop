@@ -1,0 +1,6 @@
+
+[browser]
+playwright>=1.40
+
+[dev]
+pytest>=8
