@@ -65,7 +65,39 @@ symlink breakouts raise `PathEscapeError`.
 `examples/react_agent.py` shows the intended pattern: the model reasons,
 emits one tool call per turn (`{"tool": "shell", "args": {...}}`), reads
 the observation, and repeats until `DONE:`. Wire in any LLM by replacing
-`ask_model()`.
+`ask_model()`. Pass an `AGUIStream` to `run_agent(..., stream=stream)` to
+broadcast the run as live AG-UI events.
+
+## Live UI with AG-UI
+
+`aidesktop.agui` turns an agent run into an
+[AG-UI](https://ag-ui.com) event stream — the open standard for agent→UI
+communication (adopted by CopilotKit, Microsoft Agent Framework, LangGraph,
+CrewAI, and others). Any AG-UI consumer can render what the agent is doing
+in real time: streamed text, tool calls with args/results, run/step
+lifecycle, and shared state (working directory, background jobs).
+
+```python
+from aidesktop import AGUIStream
+
+stream = AGUIStream()
+stream.run("summarize the repo", lambda s: my_agent(s))
+for chunk in stream.sse_chunks():      # data: {...}\n\n over SSE
+    ...
+```
+
+Or run the demo as a real server (stdlib only, no web framework):
+
+```bash
+python examples/agui_server.py
+# curl -N "http://localhost:8765/agent?task=list the files"
+# or open http://localhost:8765/demo in a browser
+```
+
+The event shapes (`RUN_STARTED`, `TEXT_MESSAGE_START/CONTENT/END`,
+`TOOL_CALL_START/ARGS/END/RESULT`, `STATE_SNAPSHOT`, `STATE_DELTA` as
+JSON Patch, `RUN_FINISHED`/`RUN_ERROR`, `CUSTOM`) follow the AG-UI spec's
+camelCase field names, so events validate against the official schema.
 
 ## API sketch
 
