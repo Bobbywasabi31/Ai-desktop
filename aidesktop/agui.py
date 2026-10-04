@@ -132,8 +132,9 @@ class AGUIStream:
             "threadId": self.thread_id,
             "runId": self.run_id,
         }
-        if task is not None:
-            event["input"] = {"task": task}
+        # AG-UI 1.0: input must be a RunAgentInput (threadId, runId, messages,
+        # state, tools...); there is no "task" field. Omit it (optional).
+        # The task is kept as a Python-side convenience only.
         return self.emit(event)
 
     def run_finished(self, result: Any = None) -> dict:
@@ -202,12 +203,13 @@ class AGUIStream:
         return self.emit({"type": TOOL_CALL_END, "toolCallId": tool_call_id})
 
     def tool_call_result(self, tool_call_id: str, content: Any) -> dict:
+        # AG-UI 1.0: TOOL_CALL_RESULT has no "role" field; the role is implied
+        # by the event type. (Removed "role": "tool" which 1.0 strips.)
         return self.emit({
             "type": TOOL_CALL_RESULT,
             "messageId": f"msg-{uuid.uuid4().hex[:8]}",
             "toolCallId": tool_call_id,
             "content": content if isinstance(content, str) else json.dumps(content),
-            "role": "tool",
         })
 
     def tool_call(self, name: str, args: Any, result: Any = None) -> str:
