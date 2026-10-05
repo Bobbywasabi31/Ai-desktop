@@ -66,6 +66,121 @@ def test_json_patch_helpers():
     assert json_patch_remove("/c") == {"op": "remove", "path": "/c"}
 
 
+def test_reasoning_events_match_spec_1_0():
+    s = AGUIStream()
+    block = s.reasoning_start()
+    mid = s.reasoning_message_start()
+    s.reasoning_message_content(mid, "thinking...")
+    s.reasoning_message_end(mid)
+    s.reasoning_end(block)
+    by_type = {}
+    for e in s.events:
+        by_type.setdefault(e["type"], []).append(e)
+    assert by_type["REASONING_START"][0]["messageId"] == block
+    start = by_type["REASONING_MESSAGE_START"][0]
+    assert start["messageId"] == mid
+    assert start["role"] == "reasoning"  # 1.0: fixed literal role
+    assert by_type["REASONING_MESSAGE_CONTENT"][0]["delta"] == "thinking..."
+    assert by_type["REASONING_MESSAGE_CONTENT"][0]["messageId"] == mid
+    assert by_type["REASONING_MESSAGE_END"][0]["messageId"] == mid
+    assert by_type["REASONING_END"][0]["messageId"] == block
+
+
+def test_reasoning_message_one_shot():
+    s = AGUIStream()
+    mid = s.reasoning_message("hmm")
+    assert [e["type"] for e in s.events] == [
+        "REASONING_MESSAGE_START", "REASONING_MESSAGE_CONTENT",
+        "REASONING_MESSAGE_END"]
+    assert all(e["messageId"] == mid for e in s.events)
+
+
+def test_reasoning_encrypted_value():
+    s = AGUIStream()
+    s.reasoning_encrypted_value("message", "msg-1", "blob")
+    ev = s.events[0]
+    assert ev["type"] == "REASONING_ENCRYPTED_VALUE"
+    assert ev["subtype"] == "message"
+    assert ev["entityId"] == "msg-1" and ev["encryptedValue"] == "blob"
+    with pytest.raises(ValueError):
+        s.reasoning_encrypted_value("bogus", "msg-1", "blob")
+
+
+def test_chunk_helpers_are_minimal():
+    s = AGUIStream()
+    s.text_message_chunk(delta="hi")
+    s.tool_call_chunk(tool_call_name="shell", delta='{"cmd":')
+    s.reasoning_message_chunk(delta="hmm")
+    by_type = {e["type"]: e for e in s.events}
+    # every field optional: only what was given is present
+    assert by_type["TEXT_MESSAGE_CHUNK"] == {
+        "type": "TEXT_MESSAGE_CHUNK", "delta": "hi",
+        "timestamp": by_type["TEXT_MESSAGE_CHUNK"]["timestamp"]}
+    assert by_type["TOOL_CALL_CHUNK"]["toolCallName"] == "shell"
+    assert "toolCallId" not in by_type["TOOL_CALL_CHUNK"]
+    assert by_type["REASONING_MESSAGE_CHUNK"]["delta"] == "hmm"
+
+
+def test_activity_events():
+    s = AGUIStream()
+    s.activity_snapshot("act-1", "plan", {"todos": ["a"]}, replace=True)
+    s.activity_delta("act-1", "plan", json_patch_replace("/todos/0", "b"))
+    by_type = {e["type"]: e for e in s.events}
+    snap = by_type["ACTIVITY_SNAPSHOT"]
+    assert snap["messageId"] == "act-1"
+    assert snap["activityType"] == "plan"
+    assert snap["content"] == {"todos": ["a"]}
+    assert snap["replace"] is True
+    delta = by_type["ACTIVITY_DELTA"]
+    assert delta["messageId"] == "act-1"
+    assert delta["patch"] == [{"op": "replace", "path": "/todos/0",
+                               "value": "b"}]
+
+
+def test_subagent_lifecycle():
+    s = AGUIStream()
+    sid = s.subagent_started("flight-search", description="finds flights")
+    # events the subagent produces carry its run id for attribution
+    s.text_message_chunk(delta="found 3", subagent_run_id=sid)
+    s.subagent_finished(sid, result="3 flights")
+    by_type = {e["type"]: e for e in s.events}
+    started = by_type["SUBAGENT_STARTED"]
+    assert started["subagentRunId"] == sid
+    assert started["name"] == "flight-search"
+    assert started["description"] == "finds flights"
+    assert by_type["TEXT_MESSAGE_CHUNK"]["subagentRunId"] == sid
+    finished = by_type["SUBAGENT_FINISHED"]
+    assert finished["subagentRunId"] == sid
+    assert finished["result"] == "3 flights"
+
+    s2 = AGUIStream()
+    sid2 = s2.subagent_started("hotels")
+    s2.subagent_error(sid2, "timed out", code="TIMEOUT")
+    err = {e["type"]: e for e in s2.events}["SUBAGENT_ERROR"]
+    assert err["subagentRunId"] == sid2
+    assert err["message"] == "timed out" and err["code"] == "TIMEOUT"
+
+
+def test_raw_event_passthrough():
+    s = AGUIStream()
+    s.raw({"provider": "x", "n": 1}, source="openai")
+    ev = s.events[0]
+    assert ev["type"] == "RAW"
+    assert ev["event"] == {"provider": "x", "n": 1}
+    assert ev["source"] == "openai"
+
+
+def test_tool_call_result_passes_content_parts_through():
+    # AG-UI 1.0: content may be a list of multimodal content parts
+    s = AGUIStream()
+    parts = [{"type": "text", "text": "hi"},
+             {"type": "document", "source": {"type": "url"}}]
+    s.tool_call("t", {}, result=parts)
+    ev = next(e for e in s.events if e["type"] == "TOOL_CALL_RESULT")
+    assert ev["content"] == parts
+    assert "role" not in ev  # 1.0: no role field on TOOL_CALL_RESULT
+
+
 def test_run_wrapper_lifecycle():
     s = AGUIStream()
     result = s.run("task", lambda stream: "answer")

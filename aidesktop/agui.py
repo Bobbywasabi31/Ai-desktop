@@ -47,14 +47,30 @@ STEP_FINISHED = "STEP_FINISHED"
 TEXT_MESSAGE_START = "TEXT_MESSAGE_START"
 TEXT_MESSAGE_CONTENT = "TEXT_MESSAGE_CONTENT"
 TEXT_MESSAGE_END = "TEXT_MESSAGE_END"
+TEXT_MESSAGE_CHUNK = "TEXT_MESSAGE_CHUNK"          # 1.0 chunk shorthand
 TOOL_CALL_START = "TOOL_CALL_START"
 TOOL_CALL_ARGS = "TOOL_CALL_ARGS"
 TOOL_CALL_END = "TOOL_CALL_END"
+TOOL_CALL_CHUNK = "TOOL_CALL_CHUNK"                # 1.0 chunk shorthand
 TOOL_CALL_RESULT = "TOOL_CALL_RESULT"
 STATE_SNAPSHOT = "STATE_SNAPSHOT"
 STATE_DELTA = "STATE_DELTA"
 MESSAGES_SNAPSHOT = "MESSAGES_SNAPSHOT"
 CUSTOM = "CUSTOM"
+# AG-UI 1.0 additions ---------------------------------------------------
+REASONING_START = "REASONING_START"
+REASONING_END = "REASONING_END"
+REASONING_MESSAGE_START = "REASONING_MESSAGE_START"
+REASONING_MESSAGE_CONTENT = "REASONING_MESSAGE_CONTENT"
+REASONING_MESSAGE_END = "REASONING_MESSAGE_END"
+REASONING_MESSAGE_CHUNK = "REASONING_MESSAGE_CHUNK"  # 1.0 chunk shorthand
+REASONING_ENCRYPTED_VALUE = "REASONING_ENCRYPTED_VALUE"
+ACTIVITY_SNAPSHOT = "ACTIVITY_SNAPSHOT"
+ACTIVITY_DELTA = "ACTIVITY_DELTA"
+SUBAGENT_STARTED = "SUBAGENT_STARTED"
+SUBAGENT_FINISHED = "SUBAGENT_FINISHED"
+SUBAGENT_ERROR = "SUBAGENT_ERROR"
+RAW = "RAW"
 
 
 def encode_sse(event: dict) -> str:
@@ -205,11 +221,14 @@ class AGUIStream:
     def tool_call_result(self, tool_call_id: str, content: Any) -> dict:
         # AG-UI 1.0: TOOL_CALL_RESULT has no "role" field; the role is implied
         # by the event type. (Removed "role": "tool" which 1.0 strips.)
+        # 1.0 also allows content to be a list of multimodal content parts
+        # (text/image/audio/video/document), so non-str content passes
+        # through untouched rather than being JSON-encoded.
         return self.emit({
             "type": TOOL_CALL_RESULT,
             "messageId": f"msg-{uuid.uuid4().hex[:8]}",
             "toolCallId": tool_call_id,
-            "content": content if isinstance(content, str) else json.dumps(content),
+            "content": content,
         })
 
     def tool_call(self, name: str, args: Any, result: Any = None) -> str:
@@ -233,6 +252,239 @@ class AGUIStream:
 
     def custom(self, name: str, value: Any) -> dict:
         return self.emit({"type": CUSTOM, "name": name, "value": value})
+
+    # -- chunk helpers (AG-UI 1.0) -----------------------------------------
+    # Shorthand events a producer can emit instead of start/content/end
+    # triples; consumers normalize them back into triples. Every field is
+    # optional — include only what you have.
+
+    def text_message_chunk(self, message_id: str | None = None,
+                           delta: str | None = None,
+                           role: str | None = None,
+                           subagent_run_id: str | None = None) -> dict:
+        """TEXT_MESSAGE_CHUNK: shorthand for a text message update."""
+        event: dict[str, Any] = {"type": TEXT_MESSAGE_CHUNK}
+        if message_id:
+            event["messageId"] = message_id
+        if role:
+            event["role"] = role
+        if delta is not None:
+            event["delta"] = delta
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def tool_call_chunk(self, tool_call_id: str | None = None,
+                        tool_call_name: str | None = None,
+                        delta: str | None = None,
+                        subagent_run_id: str | None = None) -> dict:
+        """TOOL_CALL_CHUNK: shorthand for a tool call's start/args/end."""
+        event: dict[str, Any] = {"type": TOOL_CALL_CHUNK}
+        if tool_call_id:
+            event["toolCallId"] = tool_call_id
+        if tool_call_name:
+            event["toolCallName"] = tool_call_name
+        if delta is not None:
+            event["delta"] = delta
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def reasoning_message_chunk(self, message_id: str | None = None,
+                                delta: str | None = None,
+                                subagent_run_id: str | None = None) -> dict:
+        """REASONING_MESSAGE_CHUNK: shorthand for a reasoning update."""
+        event: dict[str, Any] = {"type": REASONING_MESSAGE_CHUNK}
+        if message_id:
+            event["messageId"] = message_id
+        if delta is not None:
+            event["delta"] = delta
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    # -- reasoning (AG-UI 1.0) ---------------------------------------------
+    # The model's thinking, streamed separately from the user-facing reply.
+    # A REASONING_START/END block wraps one or more reasoning messages.
+
+    def reasoning_start(self, subagent_run_id: str | None = None) -> str:
+        """Open a reasoning block; returns its id for reasoning_end()."""
+        block_id = f"rsn-{uuid.uuid4().hex[:8]}"
+        event: dict[str, Any] = {"type": REASONING_START,
+                                 "messageId": block_id}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        self.emit(event)
+        return block_id
+
+    def reasoning_end(self, block_id: str,
+                      subagent_run_id: str | None = None) -> dict:
+        """Close a reasoning block opened by reasoning_start()."""
+        event: dict[str, Any] = {"type": REASONING_END,
+                                 "messageId": block_id}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def reasoning_message_start(
+            self, message_id: str | None = None,
+            subagent_run_id: str | None = None) -> str:
+        """Open a streamed reasoning message (role is always "reasoning")."""
+        message_id = message_id or f"rms-{uuid.uuid4().hex[:8]}"
+        event: dict[str, Any] = {"type": REASONING_MESSAGE_START,
+                                 "messageId": message_id,
+                                 "role": "reasoning"}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        self.emit(event)
+        return message_id
+
+    def reasoning_message_content(self, message_id: str, delta: str,
+                                  subagent_run_id: str | None = None) -> dict:
+        """Append a fragment to a streamed reasoning message."""
+        event: dict[str, Any] = {"type": REASONING_MESSAGE_CONTENT,
+                                 "messageId": message_id, "delta": delta}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def reasoning_message_end(self, message_id: str,
+                              subagent_run_id: str | None = None) -> dict:
+        """Close a streamed reasoning message."""
+        event: dict[str, Any] = {"type": REASONING_MESSAGE_END,
+                                 "messageId": message_id}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def reasoning_message(self, content: str,
+                          subagent_run_id: str | None = None) -> str:
+        """Emit a whole reasoning message as start/content/end (one shot)."""
+        message_id = self.reasoning_message_start(
+            subagent_run_id=subagent_run_id)
+        if content:
+            self.reasoning_message_content(message_id, content,
+                                           subagent_run_id=subagent_run_id)
+        self.reasoning_message_end(message_id,
+                                   subagent_run_id=subagent_run_id)
+        return message_id
+
+    def reasoning_encrypted_value(self, subtype: str, entity_id: str,
+                                  encrypted_value: str,
+                                  subagent_run_id: str | None = None) -> dict:
+        """REASONING_ENCRYPTED_VALUE: a provider's opaque encrypted reasoning
+        blob. Consumers store and return it on a later turn without reading
+        it. subtype is "message" or "tool-call" (per the 1.0 schema)."""
+        if subtype not in ("message", "tool-call"):
+            raise ValueError(
+                f'subtype must be "message" or "tool-call", got {subtype!r}')
+        event: dict[str, Any] = {
+            "type": REASONING_ENCRYPTED_VALUE,
+            "subtype": subtype,
+            "entityId": entity_id,
+            "encryptedValue": encrypted_value,
+        }
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    # -- activity (AG-UI 1.0) ----------------------------------------------
+    # Structured progress that is not conversation content — what the agent
+    # is *doing* (planning, searching, waiting), rendered by the UI as its
+    # own widget.
+
+    def activity_snapshot(self, message_id: str, activity_type: str,
+                          content: dict, replace: bool | None = None,
+                          subagent_run_id: str | None = None) -> dict:
+        """ACTIVITY_SNAPSHOT: full activity state (replaces, like a snapshot).
+        content is an arbitrary object the UI renders for activity_type."""
+        event: dict[str, Any] = {"type": ACTIVITY_SNAPSHOT,
+                                 "messageId": message_id,
+                                 "activityType": activity_type,
+                                 "content": content}
+        if replace is not None:
+            event["replace"] = replace
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    def activity_delta(self, message_id: str, activity_type: str,
+                       patch: list[dict] | dict,
+                       subagent_run_id: str | None = None) -> dict:
+        """ACTIVITY_DELTA: JSON Patch (RFC 6902) ops against the last
+        activity snapshot with the same message_id."""
+        event: dict[str, Any] = {"type": ACTIVITY_DELTA,
+                                 "messageId": message_id,
+                                 "activityType": activity_type,
+                                 "patch": patch if isinstance(patch, list)
+                                 else [patch]}
+        if subagent_run_id:
+            event["subagentRunId"] = subagent_run_id
+        return self.emit(event)
+
+    # -- subagents (AG-UI 1.0) ---------------------------------------------
+    # A child agent's lifecycle. Everything the subagent produces is tagged
+    # with its subagentRunId (pass subagent_run_id to the other emit
+    # methods), so the UI can group the work without replaying the stream.
+
+    def subagent_started(self, name: str, description: str | None = None,
+                         subagent_run_id: str | None = None,
+                         parent_subagent_run_id: str | None = None,
+                         parent_tool_call_id: str | None = None,
+                         parent_message_id: str | None = None) -> str:
+        """SUBAGENT_STARTED: announce a subagent invocation. Returns its run
+        id — pass it back to subagent_finished/subagent_error and as
+        subagent_run_id on the events the subagent produces."""
+        run_id = subagent_run_id or f"sub-{uuid.uuid4().hex[:8]}"
+        event: dict[str, Any] = {"type": SUBAGENT_STARTED,
+                                 "subagentRunId": run_id, "name": name}
+        if description:
+            event["description"] = description
+        if parent_subagent_run_id:
+            event["parentSubagentRunId"] = parent_subagent_run_id
+        if parent_tool_call_id:
+            event["parentToolCallId"] = parent_tool_call_id
+        if parent_message_id:
+            event["parentMessageId"] = parent_message_id
+        self.emit(event)
+        return run_id
+
+    def subagent_finished(self, subagent_run_id: str, result: Any = None,
+                          outcome: dict | None = None) -> dict:
+        """SUBAGENT_FINISHED: end a subagent's segment of the run.
+        outcome is {"type": "success"} or
+        {"type": "suspended", "interruptIds": [...]}; absent means success."""
+        event: dict[str, Any] = {"type": SUBAGENT_FINISHED,
+                                 "subagentRunId": subagent_run_id}
+        if result is not None:
+            event["result"] = result
+        if outcome is not None:
+            event["outcome"] = outcome
+        return self.emit(event)
+
+    def subagent_error(self, subagent_run_id: str, message: str,
+                       code: str | None = None) -> dict:
+        """SUBAGENT_ERROR: a subagent failed. The run may continue — the
+        parent is free to handle it, which is why this is not RUN_ERROR."""
+        event: dict[str, Any] = {"type": SUBAGENT_ERROR,
+                                 "subagentRunId": subagent_run_id,
+                                 "message": message}
+        if code:
+            event["code"] = code
+        return self.emit(event)
+
+    # -- escape hatch (AG-UI 1.0) ------------------------------------------
+
+    def raw(self, event: Any, source: str | None = None,
+            subagent_run_id: str | None = None) -> dict:
+        """RAW: forward a provider event verbatim for consumers that know
+        how to read it. `event` is the untouched payload."""
+        payload: dict[str, Any] = {"type": RAW, "event": event}
+        if source:
+            payload["source"] = source
+        if subagent_run_id:
+            payload["subagentRunId"] = subagent_run_id
+        return self.emit(payload)
 
     # -- desktop helpers --------------------------------------------------
     def snapshot_desktop(self, desktop) -> dict:

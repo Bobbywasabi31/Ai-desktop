@@ -98,6 +98,14 @@ The event shapes (`RUN_STARTED`, `TEXT_MESSAGE_START/CONTENT/END`,
 `TOOL_CALL_START/ARGS/END/RESULT`, `STATE_SNAPSHOT`, `STATE_DELTA` as
 JSON Patch, `RUN_FINISHED`/`RUN_ERROR`, `CUSTOM`) follow the AG-UI spec's
 camelCase field names, so events validate against the official schema.
+AG-UI 1.0 additions are covered too: the `REASONING_*` family (streamed
+thinking, kept separate from the reply), `ACTIVITY_SNAPSHOT`/`DELTA`
+(structured progress widgets), `SUBAGENT_STARTED`/`FINISHED`/`ERROR`
+with `subagentRunId` attribution, `RAW` provider passthrough, and the
+`TEXT_MESSAGE_CHUNK`/`TOOL_CALL_CHUNK`/`REASONING_MESSAGE_CHUNK`
+shorthands. Per 1.0, `RUN_STARTED` carries no `input.task` and
+`TOOL_CALL_RESULT` carries no `role`; result `content` may be a string
+or a list of multimodal content parts.
 
 ## API sketch
 
