@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Give an AI agent its own desktop: shell, files, background jobs, web, and a real browser."
 readme = "README.md"
 requires-python = ">=3.10"
