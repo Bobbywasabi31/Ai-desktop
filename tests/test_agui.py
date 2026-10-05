@@ -39,7 +39,9 @@ def test_event_field_names_match_spec():
     by_type = {e["type"]: e for e in s.events}
     assert by_type["RUN_STARTED"]["threadId"] == s.thread_id
     assert by_type["RUN_STARTED"]["runId"] == s.run_id
-    assert by_type["RUN_STARTED"]["input"] == {"task": "hello"}
+    # AG-UI 1.0: RunAgentInput has no "task" field, so RUN_STARTED carries
+    # no "input" at all (the task string stays Python-side only).
+    assert "input" not in by_type["RUN_STARTED"]
     assert by_type["STATE_SNAPSHOT"]["snapshot"] == {"workdir": "/tmp"}
     assert by_type["STATE_DELTA"]["delta"] == [
         {"op": "replace", "path": "/jobs", "value": []}]
