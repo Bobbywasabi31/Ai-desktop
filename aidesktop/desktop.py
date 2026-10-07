@@ -22,16 +22,19 @@ a safety policy the operator controls.
 from __future__ import annotations
 
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from . import files, safety, shell, web
 
 
 class Desktop:
-    def __init__(self, workdir: str = "~/agent-desktop",
-                 approver: safety.Approver | None = None,
-                 blocklist: list | None = None,
-                 confirm_shell: Callable[[str], bool] | None = None):
+    def __init__(
+        self,
+        workdir: str = "~/agent-desktop",
+        approver: safety.Approver | None = None,
+        blocklist: list | None = None,
+        confirm_shell: Callable[[str], bool] | None = None,
+    ):
         """Create (or attach to) an agent workspace at `workdir`.
 
         - `approver`: human-in-the-loop gate for irreversible actions.
@@ -48,21 +51,34 @@ class Desktop:
         self._jobs: list[shell.Job] = []
 
     # -- shell ---------------------------------------------------------
-    def shell(self, command: str, timeout: float = 120,
-              background: bool = False, env: dict | None = None,
-              allow_irreversible: bool = False) -> shell.ShellResult | shell.Job:
+    def shell(
+        self,
+        command: str,
+        timeout: float = 120,
+        background: bool = False,
+        env: dict | None = None,
+        allow_irreversible: bool = False,
+    ) -> shell.ShellResult | shell.Job:
         """Run a shell command. Foreground by default; `background=True`
         returns a Job you can poll/kill. Irreversible-looking commands
         (deletes outside the workspace, pushes, publishes) need approval
         unless `allow_irreversible=True` was decided by the operator."""
         safety.check_command(
-            command, safety.default_blocklist() + (self._extra_blocklist or []))
+            command, safety.default_blocklist() + (self._extra_blocklist or [])
+        )
         if self._confirm_shell and not self._confirm_shell(command):
-            raise safety.SafetyError(f"shell command refused by operator: {command[:120]!r}")
+            raise safety.SafetyError(
+                f"shell command refused by operator: {command[:120]!r}"
+            )
         if not allow_irreversible and _looks_irreversible(command):
             self.approver.gate(f"shell: {command}", irreversible=True)
-        job_or_result = shell.run(command, workdir=self.workdir, timeout=timeout,
-                                  env=env, background=background)
+        job_or_result = shell.run(
+            command,
+            workdir=self.workdir,
+            timeout=timeout,
+            env=env,
+            background=background,
+        )
         if isinstance(job_or_result, shell.Job):
             self._jobs.append(job_or_result)
         return job_or_result
@@ -112,6 +128,7 @@ class Desktop:
         """A persistent Chromium page. First access launches it."""
         if self._browser is None:
             from .browser import Browser
+
             self._browser = Browser()
         return self._browser
 
@@ -123,7 +140,7 @@ class Desktop:
             self._browser.close()
             self._browser = None
 
-    def __enter__(self) -> "Desktop":
+    def __enter__(self) -> Desktop:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -132,7 +149,19 @@ class Desktop:
 
 def _looks_irreversible(command: str) -> bool:
     lowered = command.lower()
-    markers = ["rm -rf", "rm -r", ":(){", "mkfs", "dd ", "git push",
-               "gh release", "npm publish", "pip upload", "twine upload",
-               "shutdown", "reboot", ">/dev/sd"]
+    markers = [
+        "rm -rf",
+        "rm -r",
+        ":(){",
+        "mkfs",
+        "dd ",
+        "git push",
+        "gh release",
+        "npm publish",
+        "pip upload",
+        "twine upload",
+        "shutdown",
+        "reboot",
+        ">/dev/sd",
+    ]
     return any(m in lowered for m in markers)

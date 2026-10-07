@@ -37,8 +37,7 @@ def ask_model(messages: list[dict]) -> str:
     return "DONE: demo model — wire in your own LLM via ask_model()."
 
 
-def run_agent(task: str, max_steps: int = 12,
-              stream: AGUIStream | None = None) -> str:
+def run_agent(task: str, max_steps: int = 12, stream: AGUIStream | None = None) -> str:
     """Run the ReAct loop. Pass an ``AGUIStream`` to broadcast live
     AG-UI events (run/step lifecycle, text, tool calls, state) as it goes."""
     desk = Desktop()
@@ -53,8 +52,10 @@ def run_agent(task: str, max_steps: int = 12,
         if stream and len(jobs) != jobs_seen:
             jobs_seen = len(jobs)
             from aidesktop.agui import json_patch_replace
-            stream.state_delta(json_patch_replace(
-                "/jobs", stream.snapshot_desktop(desk)["jobs"]))
+
+            stream.state_delta(
+                json_patch_replace("/jobs", stream.snapshot_desktop(desk)["jobs"])
+            )
 
     messages = [
         {"role": "system", "content": SYSTEM},
@@ -67,7 +68,7 @@ def run_agent(task: str, max_steps: int = 12,
             reply = ask_model(messages).strip()
             messages.append({"role": "assistant", "content": reply})
             if reply.startswith("DONE:"):
-                final = reply[len("DONE:"):].strip()
+                final = reply[len("DONE:") :].strip()
                 if stream:
                     stream.text_message(final)
                     stream.step_finished(f"step-{step + 1}")
@@ -89,7 +90,15 @@ def run_agent(task: str, max_steps: int = 12,
                 if tool == "shell":
                     out = desk.shell(**args)
                     observation = str(out if not hasattr(out, "running") else out.log())
-                elif tool in ("read", "write", "append", "edit", "list", "fetch", "search"):
+                elif tool in (
+                    "read",
+                    "write",
+                    "append",
+                    "edit",
+                    "list",
+                    "fetch",
+                    "search",
+                ):
                     observation = str(getattr(desk, tool)(**args))
                 else:
                     observation = f"unknown tool: {tool}"
@@ -97,12 +106,14 @@ def run_agent(task: str, max_steps: int = 12,
                     stream.tool_call_end(tc_id)
                     stream.tool_call_result(tc_id, observation[:4000])
                 _emit_jobs_delta()
-            except Exception as e:  # noqa: BLE001 — the agent must see its errors
+            except Exception as e:  # the agent must see its errors
                 observation = f"error: {e}"
                 if stream:
                     stream.tool_call_end(tc_id)
                     stream.tool_call_result(tc_id, observation)
-            messages.append({"role": "user", "content": f"observation:\n{observation[:4000]}"})
+            messages.append(
+                {"role": "user", "content": f"observation:\n{observation[:4000]}"}
+            )
             if stream:
                 stream.step_finished(f"step-{step + 1}")
         final = "max steps reached without DONE"

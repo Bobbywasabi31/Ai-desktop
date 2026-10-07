@@ -13,7 +13,6 @@ Stdlib only — no web framework needed.
 
 from __future__ import annotations
 
-import html
 import json
 import queue
 import sys
@@ -22,9 +21,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, "examples")
-from react_agent import run_agent  # noqa: E402
+from react_agent import run_agent
 
-from aidesktop.agui import AGUIStream  # noqa: E402
+from aidesktop.agui import AGUIStream
 
 DEMO_PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <title>ai-desktop · AG-UI live</title>
@@ -84,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         def _run() -> None:
             try:
                 run_agent(task, stream=AGUIStream(sink=_sink))
-            except Exception as e:  # noqa: BLE001 — surfaced as RUN_ERROR by run_agent? no, here
+            except Exception as e:  # surfaced to the UI as RUN_ERROR
                 q.put({"type": "RUN_ERROR", "message": f"{type(e).__name__}: {e}"})
             finally:
                 q.put(None)
@@ -102,7 +101,8 @@ class Handler(BaseHTTPRequestHandler):
                 if event is None:
                     break
                 self.wfile.write(
-                    f"data: {json.dumps(event, separators=(',', ':'))}\n\n".encode())
+                    f"data: {json.dumps(event, separators=(',', ':'))}\n\n".encode()
+                )
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
             pass
@@ -111,8 +111,10 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"AG-UI SSE server on http://127.0.0.1:{port}/agent?task=...  "
-          f"(demo UI at /demo)")
+    print(
+        f"AG-UI SSE server on http://127.0.0.1:{port}/agent?task=...  "
+        f"(demo UI at /demo)"
+    )
     server.serve_forever()
 
 

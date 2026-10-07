@@ -44,7 +44,8 @@ def test_event_field_names_match_spec():
     assert "input" not in by_type["RUN_STARTED"]
     assert by_type["STATE_SNAPSHOT"]["snapshot"] == {"workdir": "/tmp"}
     assert by_type["STATE_DELTA"]["delta"] == [
-        {"op": "replace", "path": "/jobs", "value": []}]
+        {"op": "replace", "path": "/jobs", "value": []}
+    ]
     assert by_type["TEXT_MESSAGE_START"]["messageId"]
     assert by_type["TEXT_MESSAGE_CONTENT"]["delta"] == "hi"
     tc = by_type["TOOL_CALL_START"]
@@ -90,8 +91,10 @@ def test_reasoning_message_one_shot():
     s = AGUIStream()
     mid = s.reasoning_message("hmm")
     assert [e["type"] for e in s.events] == [
-        "REASONING_MESSAGE_START", "REASONING_MESSAGE_CONTENT",
-        "REASONING_MESSAGE_END"]
+        "REASONING_MESSAGE_START",
+        "REASONING_MESSAGE_CONTENT",
+        "REASONING_MESSAGE_END",
+    ]
     assert all(e["messageId"] == mid for e in s.events)
 
 
@@ -114,8 +117,10 @@ def test_chunk_helpers_are_minimal():
     by_type = {e["type"]: e for e in s.events}
     # every field optional: only what was given is present
     assert by_type["TEXT_MESSAGE_CHUNK"] == {
-        "type": "TEXT_MESSAGE_CHUNK", "delta": "hi",
-        "timestamp": by_type["TEXT_MESSAGE_CHUNK"]["timestamp"]}
+        "type": "TEXT_MESSAGE_CHUNK",
+        "delta": "hi",
+        "timestamp": by_type["TEXT_MESSAGE_CHUNK"]["timestamp"],
+    }
     assert by_type["TOOL_CALL_CHUNK"]["toolCallName"] == "shell"
     assert "toolCallId" not in by_type["TOOL_CALL_CHUNK"]
     assert by_type["REASONING_MESSAGE_CHUNK"]["delta"] == "hmm"
@@ -133,8 +138,7 @@ def test_activity_events():
     assert snap["replace"] is True
     delta = by_type["ACTIVITY_DELTA"]
     assert delta["messageId"] == "act-1"
-    assert delta["patch"] == [{"op": "replace", "path": "/todos/0",
-                               "value": "b"}]
+    assert delta["patch"] == [{"op": "replace", "path": "/todos/0", "value": "b"}]
 
 
 def test_subagent_lifecycle():
@@ -173,8 +177,10 @@ def test_raw_event_passthrough():
 def test_tool_call_result_passes_content_parts_through():
     # AG-UI 1.0: content may be a list of multimodal content parts
     s = AGUIStream()
-    parts = [{"type": "text", "text": "hi"},
-             {"type": "document", "source": {"type": "url"}}]
+    parts = [
+        {"type": "text", "text": "hi"},
+        {"type": "document", "source": {"type": "url"}},
+    ]
     s.tool_call("t", {}, result=parts)
     ev = next(e for e in s.events if e["type"] == "TOOL_CALL_RESULT")
     assert ev["content"] == parts
@@ -212,8 +218,12 @@ def test_sse_body_is_parseable_stream():
     chunks = [c for c in body.split("\n\n") if c.strip()]
     assert len(chunks) == 5
     assert [decode_sse(c)["type"] for c in chunks] == [
-        "RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT",
-        "TEXT_MESSAGE_END", "RUN_FINISHED"]
+        "RUN_STARTED",
+        "TEXT_MESSAGE_START",
+        "TEXT_MESSAGE_CONTENT",
+        "TEXT_MESSAGE_END",
+        "RUN_FINISHED",
+    ]
 
 
 def test_snapshot_desktop(tmp_path):
@@ -238,13 +248,14 @@ def test_snapshot_desktop(tmp_path):
 
 def test_run_agent_emits_agui_events(tmp_path, monkeypatch):
     import sys
+
     sys.path.insert(0, "examples")
     import react_agent
+
     monkeypatch.chdir(tmp_path)
 
     stream = AGUIStream()
-    result = react_agent.run_agent("list the files in the workspace",
-                                   stream=stream)
+    result = react_agent.run_agent("list the files in the workspace", stream=stream)
     assert "demo model" in result
     types = [e["type"] for e in stream.events]
     assert types[0] == "RUN_STARTED"
@@ -257,8 +268,9 @@ def test_run_agent_emits_agui_events(tmp_path, monkeypatch):
     assert "STEP_FINISHED" in types
     assert types[-1] == "RUN_FINISHED"
     # tool call trio shares one id
-    tc_id = next(e for e in stream.events
-                 if e["type"] == "TOOL_CALL_START")["toolCallId"]
+    tc_id = next(e for e in stream.events if e["type"] == "TOOL_CALL_START")[
+        "toolCallId"
+    ]
     for t in ("TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT"):
         ev = next(e for e in stream.events if e["type"] == t)
         assert ev["toolCallId"] == tc_id

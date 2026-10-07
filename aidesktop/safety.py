@@ -13,7 +13,7 @@ An agent that can run shell commands needs a seatbelt. Two layers:
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 
 class SafetyError(RuntimeError):
@@ -22,17 +22,17 @@ class SafetyError(RuntimeError):
 
 def default_blocklist() -> list[re.Pattern]:
     return [
-        re.compile(r"(^|[\s;&|])rm\s+(-[rf]+\s+)*/(?:\s|$)"),          # rm -rf /
-        re.compile(r"(^|[\s;&|])rm\s+-rf?\s+~(?:\s|$)"),               # rm -rf ~
-        re.compile(r"(^|[\s;&|])rm\s+-rf?\s+\$HOME"),                  # rm -rf $HOME
-        re.compile(r":\(\)\s*\{\s*:\|\:&\s*\}\s*;:"),                  # fork bomb
-        re.compile(r"mkfs(\.|\\s)"),                                  # format a disk
-        re.compile(r"dd\s+.*of=/dev/"),                               # raw disk writes
-        re.compile(r">\s*/dev/sd"),                                   # disk clobber
-        re.compile(r"curl[^|]*\|\s*(ba)?sh"),                         # pipe-to-shell
+        re.compile(r"(^|[\s;&|])rm\s+(-[rf]+\s+)*/(?:\s|$)"),  # rm -rf /
+        re.compile(r"(^|[\s;&|])rm\s+-rf?\s+~(?:\s|$)"),  # rm -rf ~
+        re.compile(r"(^|[\s;&|])rm\s+-rf?\s+\$HOME"),  # rm -rf $HOME
+        re.compile(r":\(\)\s*\{\s*:\|\:&\s*\}\s*;:"),  # fork bomb
+        re.compile(r"mkfs(\.|\\s)"),  # format a disk
+        re.compile(r"dd\s+.*of=/dev/"),  # raw disk writes
+        re.compile(r">\s*/dev/sd"),  # disk clobber
+        re.compile(r"curl[^|]*\|\s*(ba)?sh"),  # pipe-to-shell
         re.compile(r"wget[^|]*\|\s*(ba)?sh"),
-        re.compile(r"\.ssh/id_[a-z_]+\"?\s*$"),                       # cat of private key
-        re.compile(r"printenv|env\s*$"),                              # env dumps (often leak tokens)
+        re.compile(r"\.ssh/id_[a-z_]+\"?\s*$"),  # cat of private key
+        re.compile(r"printenv|env\s*$"),  # env dumps (often leak tokens)
     ]
 
 
@@ -51,8 +51,11 @@ class Approver:
     the safe choice for unattended agents.
     """
 
-    def __init__(self, confirm: Callable[[str], bool] | None = None,
-                 auto_approve_read_only: bool = True):
+    def __init__(
+        self,
+        confirm: Callable[[str], bool] | None = None,
+        auto_approve_read_only: bool = True,
+    ):
         self._confirm = confirm or (lambda _desc: False)
         self.auto_approve_read_only = auto_approve_read_only
         self.history: list[tuple[str, bool]] = []
@@ -64,6 +67,7 @@ class Approver:
 
     def gate(self, description: str, *, irreversible: bool) -> None:
         """Raise SafetyError unless the action is approved."""
-        if irreversible or not self.auto_approve_read_only:
-            if not self.confirm(description):
-                raise SafetyError(f"action not approved: {description[:200]}")
+        if (irreversible or not self.auto_approve_read_only) and not self.confirm(
+            description
+        ):
+            raise SafetyError(f"action not approved: {description[:200]}")

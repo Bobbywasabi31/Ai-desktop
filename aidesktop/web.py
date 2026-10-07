@@ -25,7 +25,9 @@ def fetch(url: str, max_chars: int = 30_000) -> str:
 
 def _readable(html: str) -> str:
     # drop scripts, styles, nav/footer/aside noise
-    html = re.sub(r"(?is)<(script|style|nav|footer|aside|header)[^>]*>.*?</\1>", " ", html)
+    html = re.sub(
+        r"(?is)<(script|style|nav|footer|aside|header)[^>]*>.*?</\1>", " ", html
+    )
     html = re.sub(r"(?is)<!--.*?-->", " ", html)
     text = re.sub(r"(?is)<[^>]+>", "\n", html)
     text = _html.unescape(text)
@@ -43,7 +45,9 @@ def _readable(html: str) -> str:
 def search(query: str, max_results: int = 8) -> list[dict]:
     """Web search via DuckDuckGo HTML. Returns [{title, url, snippet}]."""
     params = urllib.parse.urlencode({"q": query})
-    req = urllib.request.Request(f"https://html.duckduckgo.com/html/?{params}", headers=_UA)
+    req = urllib.request.Request(
+        f"https://html.duckduckgo.com/html/?{params}", headers=_UA
+    )
     with urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT) as resp:
         html = resp.read(1_000_000).decode("utf-8", errors="replace")
     results = []
@@ -56,11 +60,13 @@ def search(query: str, max_results: int = 8) -> list[dict]:
         parsed = urllib.parse.urlparse(raw_url)
         qs = urllib.parse.parse_qs(parsed.query)
         url = qs.get("uddg", [raw_url])[0]
-        results.append({
-            "title": _clean(title),
-            "url": url,
-            "snippet": _clean(snippet),
-        })
+        results.append(
+            {
+                "title": _clean(title),
+                "url": url,
+                "snippet": _clean(snippet),
+            }
+        )
         if len(results) >= max_results:
             break
     return results

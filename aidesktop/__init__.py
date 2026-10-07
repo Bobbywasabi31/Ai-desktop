@@ -11,11 +11,20 @@ jobs), a filesystem, the web (fetch + search), and a real browser.
     desk.write("todo.txt", "- take over the world\\n")
 """
 
-from .agui import AGUIStream, encode_sse, decode_sse
+from .agui import AGUIStream, decode_sse, encode_sse
 from .desktop import Desktop
 from .safety import Approver, SafetyError, default_blocklist
 from .shell import Job, ShellResult
 
-__all__ = ["Desktop", "Approver", "SafetyError", "default_blocklist", "Job",
-           "ShellResult", "AGUIStream", "encode_sse", "decode_sse"]
-__version__ = "0.2.0"
+__all__ = [
+    "AGUIStream",
+    "Approver",
+    "Desktop",
+    "Job",
+    "SafetyError",
+    "ShellResult",
+    "decode_sse",
+    "default_blocklist",
+    "encode_sse",
+]
+__version__ = "0.3.0"

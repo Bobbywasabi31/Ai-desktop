@@ -1,14 +1,11 @@
 """Tests for ai-desktop. Run with: python -m pytest"""
 
-import os
-import time
-
 import pytest
 
 from aidesktop import Desktop, SafetyError
-from aidesktop import shell as shell_mod
 from aidesktop import files as files_mod
 from aidesktop import safety as safety_mod
+from aidesktop import shell as shell_mod
 
 
 @pytest.fixture()
@@ -76,14 +73,18 @@ def test_blocklist_allows_normal_commands():
 
 
 def test_irreversible_shell_needs_approval(tmp_path):
-    d = Desktop(workdir=str(tmp_path), approver=safety_mod.Approver(confirm=lambda desc: False))
+    d = Desktop(
+        workdir=str(tmp_path), approver=safety_mod.Approver(confirm=lambda desc: False)
+    )
     with pytest.raises(SafetyError):
         d.shell("rm -rf ./build")
     d.close()
 
 
 def test_irreversible_shell_approved(tmp_path):
-    d = Desktop(workdir=str(tmp_path), approver=safety_mod.Approver(confirm=lambda desc: True))
+    d = Desktop(
+        workdir=str(tmp_path), approver=safety_mod.Approver(confirm=lambda desc: True)
+    )
     d.write("build/x.txt", "x")
     r = d.shell("rm -rf ./build")
     assert r.ok and not d.exists("build")

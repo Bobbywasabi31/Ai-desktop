@@ -71,7 +71,7 @@ class Browser:
         self._browser.close()
         self._pw.stop()
 
-    def __enter__(self) -> "Browser":
+    def __enter__(self) -> Browser:
         return self
 
     def __exit__(self, *exc) -> None:

@@ -27,7 +27,9 @@ class FileSandbox:
         try:
             candidate.relative_to(self.root)
         except ValueError:
-            raise PathEscapeError(f"path escapes workspace root: {path}")
+            # deliberate translation of the exception type — the sandbox
+            # boundary, not the stdlib error, is what callers handle
+            raise PathEscapeError(f"path escapes workspace root: {path}") from None
         return candidate
 
     # -- reads -----------------------------------------------------------
@@ -42,16 +44,20 @@ class FileSandbox:
     def list(self, path: str = ".", max_entries: int = 500) -> list[dict]:
         p = self.resolve(path)
         entries = []
-        for child in sorted(p.iterdir(), key=lambda c: (not c.is_dir(), c.name.lower())):
+        for child in sorted(
+            p.iterdir(), key=lambda c: (not c.is_dir(), c.name.lower())
+        ):
             try:
                 st = child.stat()
             except OSError:
                 continue
-            entries.append({
-                "name": child.name + ("/" if child.is_dir() else ""),
-                "size": st.st_size,
-                "is_dir": child.is_dir(),
-            })
+            entries.append(
+                {
+                    "name": child.name + ("/" if child.is_dir() else ""),
+                    "size": st.st_size,
+                    "is_dir": child.is_dir(),
+                }
+            )
             if len(entries) >= max_entries:
                 break
         return entries
@@ -82,7 +88,10 @@ class FileSandbox:
         return len(data)
 
     def edit(self, path: str, old: str, new: str, count: int = 1) -> int:
-        """Replace `old` with `new` (first `count` occurrences). Returns replacements made."""
+        """Replace `old` with `new` (first `count` occurrences).
+
+        Returns the number of replacements made.
+        """
         p = self.resolve(path)
         text = p.read_text(encoding="utf-8")
         if old not in text:

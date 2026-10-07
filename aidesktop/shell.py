@@ -6,13 +6,13 @@ responsive, poll for output, kill when it is no longer needed.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shlex
 import signal
 import subprocess
 import threading
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -45,19 +45,21 @@ class Job:
         self._stdout_chunks: list[str] = []
         self._stderr_chunks: list[str] = []
         self._reader_threads = [
-            threading.Thread(target=self._drain, args=(proc.stdout, self._stdout_chunks), daemon=True),
-            threading.Thread(target=self._drain, args=(proc.stderr, self._stderr_chunks), daemon=True),
+            threading.Thread(
+                target=self._drain, args=(proc.stdout, self._stdout_chunks), daemon=True
+            ),
+            threading.Thread(
+                target=self._drain, args=(proc.stderr, self._stderr_chunks), daemon=True
+            ),
         ]
         for t in self._reader_threads:
             t.start()
 
     @staticmethod
     def _drain(stream, chunks: list[str]) -> None:
-        try:
-            for line in iter(stream.readline, ""):
-                chunks.append(line)
-        except ValueError:
-            pass  # stream closed by kill()
+        # stream closed by kill()
+        with contextlib.suppress(ValueError):
+            chunks.extend(iter(stream.readline, ""))
 
     @property
     def pid(self) -> int:
@@ -84,22 +86,20 @@ class Job:
     def log(self, tail: int = 50) -> str:
         """Last `tail` lines of combined output without blocking."""
         with self._lock:
-            lines = ("".join(self._stdout_chunks) + "".join(self._stderr_chunks)).splitlines()
+            lines = (
+                "".join(self._stdout_chunks) + "".join(self._stderr_chunks)
+            ).splitlines()
         return "\n".join(lines[-tail:])
 
     def kill(self) -> ShellResult:
         """Terminate the whole process tree and return what it produced."""
-        try:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(os.getpgid(self._proc.pid), signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
         try:
             self._proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            try:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
             self._proc.wait()
         return self.result()
 
@@ -111,8 +111,13 @@ class Job:
             return ShellResult(self.command, None, "", "", timed_out=True)
 
 
-def run(command: str, workdir: str = ".", timeout: float = 120,
-        env: dict | None = None, background: bool = False) -> ShellResult | Job:
+def run(
+    command: str,
+    workdir: str = ".",
+    timeout: float = 120,
+    env: dict | None = None,
+    background: bool = False,
+) -> ShellResult | Job:
     """Run `command` via the system shell.
 
     Foreground by default (with `timeout`). Pass ``background=True`` to get
@@ -120,21 +125,35 @@ def run(command: str, workdir: str = ".", timeout: float = 120,
     """
     if background:
         proc = subprocess.Popen(
-            command, shell=True, cwd=workdir, env={**os.environ, **(env or {})},
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, bufsize=1, start_new_session=True,
+            command,
+            shell=True,
+            cwd=workdir,
+            env={**os.environ, **(env or {})},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            start_new_session=True,
         )
         return Job(command, proc, workdir)
     try:
         completed = subprocess.run(
-            command, shell=True, cwd=workdir, timeout=timeout,
+            command,
+            shell=True,
+            cwd=workdir,
+            timeout=timeout,
             env={**os.environ, **(env or {})},
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
-        return ShellResult(command, completed.returncode, completed.stdout, completed.stderr)
+        return ShellResult(
+            command, completed.returncode, completed.stdout, completed.stderr
+        )
     except subprocess.TimeoutExpired as e:
         return ShellResult(
-            command, None,
+            command,
+            None,
             (e.stdout or "") if isinstance(e.stdout, str) else "",
             (e.stderr or "") if isinstance(e.stderr, str) else "",
             timed_out=True,
