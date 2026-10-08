@@ -6,6 +6,11 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 
 ### Added
 - `CHANGELOG.md` (this file).
+- `examples/react_agent.py`: `ask_model()` now talks to any OpenAI-compatible
+  chat-completions endpoint by default — bring your own key via
+  `OPENAI_API_KEY`, point anywhere via `OPENAI_BASE_URL`/`OPENAI_MODEL`
+  (stdlib only, no third-party client). Scripted offline demo kept as the
+  no-key fallback; CLI flags `--model`/`--base-url`/`--max-steps`.
 
 ### Removed
 - `archive/` scratch files (early tkinter experiments) — deleted from the repo.

@@ -64,9 +64,23 @@ symlink breakouts raise `PathEscapeError`.
 
 `examples/react_agent.py` shows the intended pattern: the model reasons,
 emits one tool call per turn (`{"tool": "shell", "args": {...}}`), reads
-the observation, and repeats until `DONE:`. Wire in any LLM by replacing
-`ask_model()`. Pass an `AGUIStream` to `run_agent(..., stream=stream)` to
-broadcast the run as live AG-UI events.
+the observation, and repeats until `DONE:`. Its `ask_model()` talks to
+any OpenAI-compatible chat-completions endpoint — bring your own key,
+point it anywhere (OpenAI, OpenRouter, Azure, Ollama, LM Studio):
+
+```bash
+export OPENAI_API_KEY=sk-...
+python examples/react_agent.py "list the files in the workspace"
+
+# local model, e.g. Ollama:
+export OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_MODEL=llama3.1
+python examples/react_agent.py "summarize README.md"
+```
+
+Stdlib only — no `openai` client needed. With no key set it falls back
+to a scripted demo so the loop still runs offline. Pass an
+`AGUIStream` to `run_agent(..., stream=stream)` to broadcast the run as
+live AG-UI events.
 
 ## Live UI with AG-UI
 
