@@ -108,6 +108,14 @@ python examples/agui_server.py
 # or open http://localhost:8765/demo in a browser
 ```
 
+Or watch the stream from a second terminal with the SSE client
+(stdlib only — prints each event type as it arrives, exits cleanly when
+the run finishes or the connection drops):
+
+```bash
+python examples/agui_client.py "list the files in the workspace"
+```
+
 The event shapes (`RUN_STARTED`, `TEXT_MESSAGE_START/CONTENT/END`,
 `TOOL_CALL_START/ARGS/END/RESULT`, `STATE_SNAPSHOT`, `STATE_DELTA` as
 JSON Patch, `RUN_FINISHED`/`RUN_ERROR`, `CUSTOM`) follow the AG-UI spec's

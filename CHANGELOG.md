@@ -6,6 +6,12 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 
 ### Added
 - `CHANGELOG.md` (this file).
+- `examples/agui_client.py`: stdlib-only terminal SSE client for the AG-UI
+  demo server — connects to `/agent`, prints each of the 15 event types as
+  it arrives (streamed text inline), and exits cleanly on run end,
+  mid-stream disconnects, unreachable servers, and Ctrl-C.
+  Tests cover SSE frame parsing, per-type rendering, and a live
+  server roundtrip.
 - `examples/react_agent.py`: `ask_model()` now talks to any OpenAI-compatible
   chat-completions endpoint by default — bring your own key via
   `OPENAI_API_KEY`, point anywhere via `OPENAI_BASE_URL`/`OPENAI_MODEL`
