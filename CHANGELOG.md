@@ -5,6 +5,10 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 ## [Unreleased]
 
 ### Added
+- `tests/test_version.py`: guard asserting `aidesktop.__version__` matches
+  `pyproject.toml` and is semver — the 0.2.0→0.3.0 drift is now a test
+  failure instead of a silent mismatch (parses with a regex so it also
+  runs on Python 3.10).
 - `CHANGELOG.md` (this file).
 - `examples/agui_client.py`: stdlib-only terminal SSE client for the AG-UI
   demo server — connects to `/agent`, prints each of the 15 event types as
