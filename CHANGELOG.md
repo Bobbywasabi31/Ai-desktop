@@ -5,6 +5,10 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 ## [Unreleased]
 
 ### Added
+- `examples/agui_client.py`: `--save FILE` mirrors the rendered session
+  transcript to a UTF-8 file as it streams — a demo run can be replayed or
+  pasted into a bug report; a failed open warns on stderr and the stream
+  continues unaffected.
 - `tests/test_version.py`: guard asserting `aidesktop.__version__` matches
   `pyproject.toml` and is semver — the 0.2.0→0.3.0 drift is now a test
   failure instead of a silent mismatch (parses with a regex so it also

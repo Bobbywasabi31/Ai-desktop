@@ -226,8 +226,41 @@ def test_main_stops_at_terminal_event(client, monkeypatch, capsys):
     assert "late" not in out  # never read past RUN_ERROR
 
 
-def test_main_unreachable_server_returns_1(client, monkeypatch, capsys):
-    def fake(url, timeout=None):
+def test_main_save_writes_transcript_file(client, monkeypatch, capsys, tmp_path):
+    body = b"".join(
+        [
+            _frame({"type": "RUN_STARTED", "threadId": "t", "runId": "r"}),
+            _frame({"type": "TEXT_MESSAGE_START", "messageId": "m1"}),
+            _frame({"type": "TEXT_MESSAGE_CONTENT", "delta": "hello"}),
+            _frame({"type": "TEXT_MESSAGE_END"}),
+            _frame({"type": "RUN_FINISHED", "result": "done"}),
+        ]
+    )
+    _fake_urlopen(monkeypatch, client, body)
+    save = tmp_path / "transcript.txt"
+    assert client.main(["my task", "--save", str(save)]) == 0
+    out = capsys.readouterr().out
+    transcript = save.read_text(encoding="utf-8")
+    # the file mirrors exactly what the terminal showed
+    assert transcript == out
+    assert "connecting to" in transcript
+    assert "hello" in transcript  # streamed inline, no type tag line
+    assert "RUN_FINISHED" in transcript and "done" in transcript
+    assert "stream ended" in transcript
+
+
+def test_main_save_failure_warns_but_streams_anyway(client, monkeypatch, capsys):
+    body = _frame({"type": "RUN_FINISHED", "result": "done"})
+    _fake_urlopen(monkeypatch, client, body)
+    # a path inside a nonexistent directory cannot be opened
+    assert client.main(["t", "--save", "/no/such/dir/transcript.txt"]) == 0
+    captured = capsys.readouterr()
+    assert "warning" in captured.err and "--save" in captured.err
+    # terminal output is unaffected by the failed save
+    assert "stream ended" in captured.out and "run finished" in captured.out
+
+
+def test_main_unreachable_server_returns_1(client, monkeypatch, capsys):    def fake(url, timeout=None):
         raise urllib.error.URLError("refused")
 
     monkeypatch.setattr(client.urllib.request, "urlopen", fake)

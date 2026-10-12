@@ -114,6 +114,7 @@ the run finishes or the connection drops):
 
 ```bash
 python examples/agui_client.py "list the files in the workspace"
+# add --save transcript.txt to mirror the rendered session to a file
 ```
 
 The event shapes (`RUN_STARTED`, `TEXT_MESSAGE_START/CONTENT/END`,

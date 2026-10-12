@@ -9,6 +9,8 @@ with args/results, run/step lifecycle, and shared-state patches:
 
 Cleanly handles the normal end of stream (server closes it when the run
 finishes), mid-stream disconnects, unreachable servers, and Ctrl-C.
+`--save FILE` writes the same rendered transcript to a file (UTF-8) so a
+demo run can be replayed or pasted into a bug report.
 
 Stdlib only — no third-party SSE client needed.
 """
@@ -176,13 +178,35 @@ def main(argv: list[str] | None = None) -> int:
         help=f"demo server base URL (default {DEFAULT_BASE_URL})",
     )
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--save",
+        metavar="FILE",
+        default=None,
+        help="also write the rendered transcript to FILE (UTF-8) as it streams",
+    )
     args = parser.parse_args(argv)
+
+    log = None
+    if args.save:
+        try:
+            log = open(args.save, "w", encoding="utf-8")
+        except OSError as e:
+            print(
+                f"warning: could not open --save file {args.save!r}: {e}",
+                file=sys.stderr,
+            )
+
+    def emit(text="", end="\n"):
+        """Print one chunk to the terminal, mirroring it into the transcript."""
+        print(text, end=end, flush=True)
+        if log is not None:
+            log.write(text + end)
 
     url = (
         f"{args.base_url.rstrip('/')}/agent"
         f"?task={urllib.parse.quote(args.task, safe='')}"
     )
-    print(f"connecting to {url} ...", flush=True)
+    emit(f"connecting to {url} ...")
     try:
         resp = urllib.request.urlopen(url, timeout=args.timeout)
     except urllib.error.HTTPError as e:
@@ -195,43 +219,52 @@ def main(argv: list[str] | None = None) -> int:
 
     count = 0
     inline_open = False
+    rc = 0
     try:
-        for event in iter_sse_events(resp):
-            count += 1
-            etype = event.get("type", "<no type>")
-            text, inline = _render(event)
-            if inline:
-                print(text, end="", flush=True)
-                inline_open = True
-            else:
-                if inline_open:
-                    print()  # close the streamed line
-                    inline_open = False
-                if text:
-                    print(f"{etype:>24}  {text}", flush=True)
-            if etype in TERMINAL_TYPES:
-                break
-    except (ConnectionResetError, BrokenPipeError):
-        if inline_open:
-            print()
-        print(
-            f"error: connection lost after {count} events — "
-            "the server may have crashed",
-            file=sys.stderr,
-        )
-        return 1
-    except KeyboardInterrupt:
-        if inline_open:
-            print()
-        print("interrupted")
-        return 130
-    finally:
-        resp.close()
+        try:
+            for event in iter_sse_events(resp):
+                count += 1
+                etype = event.get("type", "<no type>")
+                text, inline = _render(event)
+                if inline:
+                    emit(text, end="")
+                    inline_open = True
+                else:
+                    if inline_open:
+                        emit()  # close the streamed line
+                        inline_open = False
+                    if text:
+                        emit(f"{etype:>24}  {text}")
+                if etype in TERMINAL_TYPES:
+                    break
+        except (ConnectionResetError, BrokenPipeError):
+            if inline_open:
+                emit()
+            msg = (
+                f"error: connection lost after {count} events — "
+                "the server may have crashed"
+            )
+            print(msg, file=sys.stderr)
+            if log is not None:
+                log.write(msg + "\n")
+            rc = 1
+        except KeyboardInterrupt:
+            if inline_open:
+                emit()
+            emit("interrupted")
+            rc = 130
+        finally:
+            resp.close()
 
-    if inline_open:
-        print()
-    print(f"stream ended — {count} event(s)")
-    return 0
+        if rc != 0:
+            return rc
+        if inline_open:
+            emit()
+        emit(f"stream ended — {count} event(s)")
+        return 0
+    finally:
+        if log is not None:
+            log.close()
 
 
 if __name__ == "__main__":
