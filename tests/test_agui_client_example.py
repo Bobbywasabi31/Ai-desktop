@@ -260,7 +260,8 @@ def test_main_save_failure_warns_but_streams_anyway(client, monkeypatch, capsys)
     assert "stream ended" in captured.out and "run finished" in captured.out
 
 
-def test_main_unreachable_server_returns_1(client, monkeypatch, capsys):    def fake(url, timeout=None):
+def test_main_unreachable_server_returns_1(client, monkeypatch, capsys):
+    def fake(url, timeout=None):
         raise urllib.error.URLError("refused")
 
     monkeypatch.setattr(client.urllib.request, "urlopen", fake)
