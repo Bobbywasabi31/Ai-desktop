@@ -161,6 +161,27 @@ def _render(event: dict) -> tuple[str, bool]:
     return _short(event), False
 
 
+@contextlib.contextmanager
+def _open_transcript(path):
+    """Yield a transcript file handle for ``--save``, or None.
+
+    A failed open warns on stderr and the session proceeds without saving —
+    the transcript is a convenience, never a reason to drop the stream.
+    """
+    if not path:
+        yield None
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            yield handle
+    except OSError as e:
+        print(
+            f"warning: could not open --save file {path!r}: {e}",
+            file=sys.stderr,
+        )
+        yield None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Terminal SSE client for the ai-desktop AG-UI demo server "
@@ -186,41 +207,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    log = None
-    if args.save:
+    with _open_transcript(args.save) as log:
+
+        def emit(text="", end="\n"):
+            """Print one chunk to the terminal, mirroring it into the transcript."""
+            print(text, end=end, flush=True)
+            if log is not None:
+                log.write(text + end)
+
+        url = (
+            f"{args.base_url.rstrip('/')}/agent"
+            f"?task={urllib.parse.quote(args.task, safe='')}"
+        )
+        emit(f"connecting to {url} ...")
         try:
-            log = open(args.save, "w", encoding="utf-8")
-        except OSError as e:
-            print(
-                f"warning: could not open --save file {args.save!r}: {e}",
-                file=sys.stderr,
-            )
+            resp = urllib.request.urlopen(url, timeout=args.timeout)
+        except urllib.error.HTTPError as e:
+            print(f"error: server returned HTTP {e.code}", file=sys.stderr)
+            return 1
+        except (urllib.error.URLError, OSError) as e:
+            reason = getattr(e, "reason", e)
+            print(f"error: could not reach {args.base_url}: {reason}", file=sys.stderr)
+            return 1
 
-    def emit(text="", end="\n"):
-        """Print one chunk to the terminal, mirroring it into the transcript."""
-        print(text, end=end, flush=True)
-        if log is not None:
-            log.write(text + end)
-
-    url = (
-        f"{args.base_url.rstrip('/')}/agent"
-        f"?task={urllib.parse.quote(args.task, safe='')}"
-    )
-    emit(f"connecting to {url} ...")
-    try:
-        resp = urllib.request.urlopen(url, timeout=args.timeout)
-    except urllib.error.HTTPError as e:
-        print(f"error: server returned HTTP {e.code}", file=sys.stderr)
-        return 1
-    except (urllib.error.URLError, OSError) as e:
-        reason = getattr(e, "reason", e)
-        print(f"error: could not reach {args.base_url}: {reason}", file=sys.stderr)
-        return 1
-
-    count = 0
-    inline_open = False
-    rc = 0
-    try:
+        count = 0
+        inline_open = False
+        rc = 0
         try:
             for event in iter_sse_events(resp):
                 count += 1
@@ -262,9 +274,6 @@ def main(argv: list[str] | None = None) -> int:
             emit()
         emit(f"stream ended — {count} event(s)")
         return 0
-    finally:
-        if log is not None:
-            log.close()
 
 
 if __name__ == "__main__":
