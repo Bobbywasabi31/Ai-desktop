@@ -28,12 +28,10 @@ from urllib.parse import parse_qs, urlparse
 # working directory: anchor the example scripts and the repo package on
 # sys.path with absolute paths derived from __file__, never the cwd. (Running
 # the script from the repo root puts only examples/ on sys.path, so the
-# previous cwd-relative insert left `aidesktop` unimportable.)
-_EXAMPLES_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.dirname(_EXAMPLES_DIR)
-for _path in (_EXAMPLES_DIR, _REPO_ROOT):
-    if _path not in sys.path:
-        sys.path.insert(0, _path)
+# previous cwd-relative insert left `aidesktop` unimportable. Kept as plain
+# sys.path.insert statements — ruff's E402 exempts exactly this pattern.)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from react_agent import run_agent
 
 from aidesktop.agui import AGUIStream

@@ -225,6 +225,7 @@ def test_help_works_from_foreign_cwd(tmp_path):
     env.pop("PYTHONPATH", None)
     proc = subprocess.run(
         [sys.executable, str(EXAMPLES), "--help"],
+        check=False,
         cwd=tmp_path,
         capture_output=True,
         text=True,
