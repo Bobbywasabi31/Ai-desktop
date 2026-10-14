@@ -3,6 +3,8 @@
 import importlib.util
 import io
 import json
+import os
+import subprocess
 import sys
 import urllib.error
 from pathlib import Path
@@ -211,3 +213,23 @@ def test_no_third_party_deps(react_agent):
     source = EXAMPLES.read_text()
     assert "import openai" not in source
     assert "import anthropic" not in source
+
+
+def test_help_works_from_foreign_cwd(tmp_path):
+    """Regression: `python examples/react_agent.py --help` died with
+    ModuleNotFoundError: No module named 'aidesktop' whenever the cwd was
+    not the repo root — running the script from repo root puts only
+    examples/ on sys.path. The README documents the bare form, so it
+    must run from anywhere without PYTHONPATH help."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    proc = subprocess.run(
+        [sys.executable, str(EXAMPLES), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "--model" in proc.stdout

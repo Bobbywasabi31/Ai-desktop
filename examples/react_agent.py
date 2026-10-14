@@ -27,6 +27,14 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
+# The README runs this as `python examples/react_agent.py` from the repo root,
+# which puts only examples/ on sys.path — the local aidesktop package then
+# fails to import. Anchor the repo root with an absolute path from __file__
+# so the script works from any working directory.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
 from aidesktop import Desktop
 from aidesktop.agui import AGUIStream
 

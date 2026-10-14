@@ -7,6 +7,8 @@ Run with: python -m pytest
 """
 
 import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -84,3 +86,23 @@ def test_unknown_flag_exits_2(server):
     with pytest.raises(SystemExit) as exc:
         server.parse_args(["--bogus"])
     assert exc.value.code == 2
+
+
+def test_help_works_from_foreign_cwd(tmp_path):
+    """Regression: `python examples/agui_server.py --help` died with
+    ModuleNotFoundError: No module named 'aidesktop' whenever the cwd was
+    not the repo root, because the sys.path bootstrap was cwd-relative.
+    The README documents the bare form, so the script must run from
+    anywhere without PYTHONPATH help."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    proc = subprocess.run(
+        [sys.executable, str(SERVER), "--help"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "--port" in proc.stdout

@@ -17,13 +17,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-sys.path.insert(0, "examples")
+# Make the documented `python examples/agui_server.py` invocation work from any
+# working directory: anchor the example scripts and the repo package on
+# sys.path with absolute paths derived from __file__, never the cwd. (Running
+# the script from the repo root puts only examples/ on sys.path, so the
+# previous cwd-relative insert left `aidesktop` unimportable.)
+_EXAMPLES_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_EXAMPLES_DIR)
+for _path in (_EXAMPLES_DIR, _REPO_ROOT):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 from react_agent import run_agent
 
 from aidesktop.agui import AGUIStream

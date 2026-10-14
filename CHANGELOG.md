@@ -4,6 +4,18 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+### Fixed
+- `examples/agui_server.py` and `examples/react_agent.py`: the README's
+  `python examples/<script>.py` invocations crashed with
+  `ModuleNotFoundError: No module named 'aidesktop'` whenever the working
+  directory was not the repo root — the sys.path bootstrap was
+  cwd-relative and never covered the repo package itself. Both scripts now
+  anchor `examples/` and the repo root with absolute paths from `__file__`,
+  so the documented commands work from any directory without PYTHONPATH
+  help. Covered by `test_help_works_from_foreign_cwd` in
+  `tests/test_agui_server_example.py` and
+  `tests/test_react_agent_example.py`.
+
 ### Added
 - `examples/agui_server.py`: real argparse CLI — `--port`/`--host` (garbage
   or out-of-range ports exit 2 with a usage error instead of a traceback;
