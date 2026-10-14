@@ -65,8 +65,9 @@ def test_host(server):
     assert args.host == "0.0.0.0"
 
 
-@pytest.mark.parametrize("argv", [["--port", "abc"], ["--port", "0"],
-                                  ["--port", "65536"], ["abc"], ["-1"]])
+@pytest.mark.parametrize(
+    "argv", [["--port", "abc"], ["--port", "0"], ["--port", "65536"], ["abc"], ["-1"]]
+)
 def test_bad_port_exits_2(server, argv):
     with pytest.raises(SystemExit) as exc:
         server.parse_args(argv)
