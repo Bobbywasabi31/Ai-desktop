@@ -5,6 +5,10 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
 ## [Unreleased]
 
 ### Added
+- `examples/agui_server.py`: real argparse CLI — `--port`/`--host` (garbage
+  or out-of-range ports exit 2 with a usage error instead of a traceback;
+  the legacy bare `python agui_server.py 9000` positional still works).
+  Covered by `tests/test_agui_server_example.py`.
 - `examples/agui_client.py`: `--save FILE` mirrors the rendered session
   transcript to a UTF-8 file as it streams — a demo run can be replayed or
   pasted into a bug report; a failed open warns on stderr and the stream

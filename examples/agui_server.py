@@ -5,6 +5,8 @@ AG-UI consumer (CopilotKit, a custom React UI, curl) can watch the agent
 work its desktop in real time:
 
     python examples/agui_server.py                 # :8765
+    python examples/agui_server.py --port 9000
+    python examples/agui_server.py --host 0.0.0.0 --port 9000
     curl -N "http://localhost:8765/agent?task=list the files in the workspace"
     # or open http://localhost:8765/demo in a browser
 
@@ -13,6 +15,7 @@ Stdlib only — no web framework needed.
 
 from __future__ import annotations
 
+import argparse
 import json
 import queue
 import sys
@@ -108,11 +111,55 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
 
-def main() -> None:
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """CLI for the demo server: --port/--host, plus the legacy bare PORT."""
+    parser = argparse.ArgumentParser(
+        description="Live AG-UI SSE demo server (examples/agui_server.py). "
+        "Streams agent runs as Server-Sent Events at /agent; demo UI at /demo."
+    )
+    parser.add_argument(
+        "port_positional",
+        metavar="PORT",
+        nargs="?",
+        default=None,
+        help=argparse.SUPPRESS,  # legacy: `python agui_server.py 9000`
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help=f"TCP port to listen on (default {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        metavar="ADDR",
+        help=f"interface to bind (default {DEFAULT_HOST})",
+    )
+    args = parser.parse_args(argv)
+    port = args.port if args.port is not None else args.port_positional
+    if port is None:
+        port = DEFAULT_PORT
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        parser.error(f"port must be an integer 1-65535, got {port!r}")
+    if not 1 <= port <= 65535:
+        parser.error(f"port {port} out of range (1-65535)")
+    args.port = port
+    return args
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(
-        f"AG-UI SSE server on http://127.0.0.1:{port}/agent?task=...  "
+        f"AG-UI SSE server on http://{args.host}:{args.port}/agent?task=...  "
         f"(demo UI at /demo)"
     )
     server.serve_forever()

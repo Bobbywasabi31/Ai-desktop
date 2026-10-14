@@ -106,6 +106,7 @@ Or run the demo as a real server (stdlib only, no web framework):
 python examples/agui_server.py
 # curl -N "http://localhost:8765/agent?task=list the files"
 # or open http://localhost:8765/demo in a browser
+# flags: --port 9000 --host 0.0.0.0 (legacy bare `python examples/agui_server.py 9000` still works)
 ```
 
 Or watch the stream from a second terminal with the SSE client
