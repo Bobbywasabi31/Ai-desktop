@@ -272,7 +272,7 @@ def test_main_save_writes_transcript(react_agent, monkeypatch, tmp_path, capsys)
     result = react_agent.main(["demo task", "--verbose", "--save", str(path)])
     assert result == "two files"
     saved = path.read_text(encoding="utf-8")
-    assert "> {\"tool\": \"list\"" in saved
+    assert '> {"tool": "list"' in saved
     assert "< a.txt b.txt" in saved
     assert saved.endswith("two files\n")
     assert capsys.readouterr().out == saved  # transcript mirrors the terminal
