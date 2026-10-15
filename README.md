@@ -81,7 +81,9 @@ Stdlib only — no `openai` client needed. With no key set it falls back
 to a scripted demo so the loop still runs offline. Pass an
 `AGUIStream` to `run_agent(..., stream=stream)` to broadcast the run as
 live AG-UI events. `--verbose` prints each turn (model reply, tool
-call, observation) as it runs, and `--save FILE` writes the same
+call, observation) as it runs, `--timeout SECONDS` tunes the per-request
+HTTP timeout for the model endpoint (default 60 — cold local models may
+need more), and `--save FILE` writes the same
 rendered transcript to a UTF-8 file — handy for pasting a run into a
 bug report.
 

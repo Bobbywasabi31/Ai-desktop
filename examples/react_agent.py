@@ -300,6 +300,12 @@ def main(argv: list[str] | None = None) -> str:
     )
     parser.add_argument("--max-steps", type=int, default=12)
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=60.0,
+        help="per-request HTTP timeout in seconds for the model endpoint",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="print each step's model reply, tool call, and observation as the agent runs",
@@ -316,6 +322,7 @@ def main(argv: list[str] | None = None) -> str:
         api_key=os.environ.get("OPENAI_API_KEY") or None,
         base_url=args.base_url.rstrip("/"),
         model=args.model,
+        timeout=args.timeout,
     )
     with _open_transcript(args.save) as log:
 

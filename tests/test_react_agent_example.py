@@ -208,6 +208,40 @@ def test_main_cli_parses_task_and_flags(react_agent, monkeypatch, tmp_path):
     assert seen == {"task": "count things", "max_steps": 3, "model": "flag-model"}
 
 
+def test_main_cli_timeout_flag_overrides_default(react_agent, monkeypatch, tmp_path):
+    """--timeout reaches the LLMConfig: 60s is too short for a cold local
+    model on some rigs (and too long for a fail-fast health check), so the
+    per-request timeout is CLI-settable like agui_client's --timeout."""
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    seen = {}
+    monkeypatch.setattr(
+        react_agent,
+        "run_agent",
+        lambda task, max_steps=12, config=None, stream=None, **kwargs: (
+            seen.update(timeout=config.timeout),
+            "ok",
+        )[1],
+    )
+    result = react_agent.main(["count things", "--timeout", "12.5"])
+    assert result == "ok"
+    assert seen == {"timeout": 12.5}
+
+
+def test_main_cli_timeout_defaults_to_60(react_agent, monkeypatch, tmp_path):
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    seen = {}
+    monkeypatch.setattr(
+        react_agent,
+        "run_agent",
+        lambda task, max_steps=12, config=None, stream=None, **kwargs: (
+            seen.update(timeout=config.timeout),
+            "ok",
+        )[1],
+    )
+    assert react_agent.main(["count things"]) == "ok"
+    assert seen == {"timeout": 60.0}
+
+
 def _two_turns():
     return iter(
         [

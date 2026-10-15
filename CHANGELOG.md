@@ -17,6 +17,11 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
   `tests/test_react_agent_example.py`.
 
 ### Added
+- `examples/react_agent.py`: `--timeout SECONDS` sets the per-request HTTP
+  timeout for the model endpoint (default 60) — parity with
+  `agui_client.py --timeout`; cold local models and fail-fast health
+  checks can now tune it from the CLI. Covered by
+  `tests/test_react_agent_example.py`.
 - `examples/react_agent.py`: `--verbose` prints each turn's model reply,
   tool call, and observation as the agent runs (it was silent until
   `DONE:` before), and `--save FILE` mirrors the rendered transcript to a
