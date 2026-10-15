@@ -17,6 +17,12 @@ All notable changes to ai-desktop. Follows [Keep a Changelog](https://keepachang
   `tests/test_react_agent_example.py`.
 
 ### Added
+- `examples/react_agent.py`: `--verbose` prints each turn's model reply,
+  tool call, and observation as the agent runs (it was silent until
+  `DONE:` before), and `--save FILE` mirrors the rendered transcript to a
+  UTF-8 file (same convention as `agui_client.py --save`); a failed open
+  warns on stderr and the run continues unaffected. Covered by
+  `tests/test_react_agent_example.py`.
 - `examples/agui_server.py`: real argparse CLI — `--port`/`--host` (garbage
   or out-of-range ports exit 2 with a usage error instead of a traceback;
   the legacy bare `python agui_server.py 9000` positional still works).

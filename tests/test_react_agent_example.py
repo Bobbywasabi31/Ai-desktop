@@ -195,7 +195,7 @@ def test_main_cli_parses_task_and_flags(react_agent, monkeypatch, tmp_path):
     monkeypatch.setattr(
         react_agent,
         "run_agent",
-        lambda task, max_steps=12, config=None, stream=None: (
+        lambda task, max_steps=12, config=None, stream=None, **kwargs: (
             seen.update(task=task, max_steps=max_steps, model=config.model),
             "ok",
         )[1],
@@ -206,6 +206,88 @@ def test_main_cli_parses_task_and_flags(react_agent, monkeypatch, tmp_path):
     )
     assert result == "ok"
     assert seen == {"task": "count things", "max_steps": 3, "model": "flag-model"}
+
+
+def _two_turns():
+    return iter(
+        [
+            json.dumps({"tool": "list", "args": {"path": "."}}),
+            "DONE: two files",
+        ]
+    )
+
+
+def test_run_agent_verbose_traces_steps(react_agent, monkeypatch):
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    turns = _two_turns()
+    monkeypatch.setattr(
+        react_agent, "ask_model", lambda messages, config=None: next(turns)
+    )
+    lines = []
+    assert react_agent.run_agent("t", verbose=True, emit=lines.append) == "two files"
+    assert lines == [
+        '> {"tool": "list", "args": {"path": "."}}',
+        '$ list {"path": "."}',
+        "< a.txt b.txt",
+        "> DONE: two files",
+    ]
+
+
+def test_run_agent_silent_by_default(react_agent, monkeypatch):
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    turns = _two_turns()
+    monkeypatch.setattr(
+        react_agent, "ask_model", lambda messages, config=None: next(turns)
+    )
+    lines = []
+    assert react_agent.run_agent("t", emit=lines.append) == "two files"
+    assert lines == []
+
+
+def test_run_agent_truncates_long_observation(react_agent, monkeypatch):
+    class _LoudDesktop(_FakeDesktop):
+        def __init__(self):
+            super().__init__()
+            self.tools = {"list": "x" * 3000}
+
+    monkeypatch.setattr(react_agent, "Desktop", _LoudDesktop)
+    turns = _two_turns()
+    monkeypatch.setattr(
+        react_agent, "ask_model", lambda messages, config=None: next(turns)
+    )
+    lines = []
+    react_agent.run_agent("t", verbose=True, emit=lines.append)
+    assert lines[2].startswith("< x")
+    assert lines[2].endswith("…")
+    assert len(lines[2]) == 1002  # "< " + 1000 chars of truncated observation
+
+
+def test_main_save_writes_transcript(react_agent, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    turns = _two_turns()
+    monkeypatch.setattr(
+        react_agent, "ask_model", lambda messages, config=None: next(turns)
+    )
+    path = tmp_path / "run.txt"
+    result = react_agent.main(["demo task", "--verbose", "--save", str(path)])
+    assert result == "two files"
+    saved = path.read_text(encoding="utf-8")
+    assert "> {\"tool\": \"list\"" in saved
+    assert "< a.txt b.txt" in saved
+    assert saved.endswith("two files\n")
+    assert capsys.readouterr().out == saved  # transcript mirrors the terminal
+
+
+def test_main_save_open_failure_warns(react_agent, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(react_agent, "Desktop", _FakeDesktop)
+    turns = _two_turns()
+    monkeypatch.setattr(
+        react_agent, "ask_model", lambda messages, config=None: next(turns)
+    )
+    result = react_agent.main(["demo task", "--save", str(tmp_path / "nope" / "x.txt")])
+    assert result == "two files"  # the run is unaffected
+    err = capsys.readouterr().err
+    assert "warning" in err and "--save" in err
 
 
 def test_no_third_party_deps(react_agent):

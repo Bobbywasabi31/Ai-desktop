@@ -80,7 +80,10 @@ python examples/react_agent.py "summarize README.md"
 Stdlib only — no `openai` client needed. With no key set it falls back
 to a scripted demo so the loop still runs offline. Pass an
 `AGUIStream` to `run_agent(..., stream=stream)` to broadcast the run as
-live AG-UI events.
+live AG-UI events. `--verbose` prints each turn (model reply, tool
+call, observation) as it runs, and `--save FILE` writes the same
+rendered transcript to a UTF-8 file — handy for pasting a run into a
+bug report.
 
 ## Live UI with AG-UI
 

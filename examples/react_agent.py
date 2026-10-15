@@ -15,11 +15,15 @@ Run (with a key):
 
 With no key set, it falls back to a tiny scripted stand-in so the loop
 still demonstrates itself offline (stdout notes that it is a demo).
+
+Watch what it does as it goes, and save a transcript for the bug report:
+    python examples/react_agent.py --verbose --save run.txt "list the files in the workspace"
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -142,14 +146,50 @@ def ask_model(messages: list[dict], config: LLMConfig | None = None) -> str:
     return _chat_completion(messages, config)
 
 
+def _short(value, limit: int = 1000) -> str:
+    """One-line preview of an arbitrary value (agui_client.py has the same helper)."""
+    text = value if isinstance(value, str) else json.dumps(value)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+@contextlib.contextmanager
+def _open_transcript(path):
+    """Yield a transcript file handle for ``--save``, or None.
+
+    A failed open warns on stderr and the session proceeds without saving —
+    the transcript is a convenience, never a reason to drop the run.
+    """
+    if not path:
+        yield None
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            yield handle
+    except OSError as e:
+        print(
+            f"warning: could not open --save file {path!r}: {e}",
+            file=sys.stderr,
+        )
+        yield None
+
+
 def run_agent(
     task: str,
     max_steps: int = 12,
     stream: AGUIStream | None = None,
     config: LLMConfig | None = None,
+    verbose: bool = False,
+    emit=None,
 ) -> str:
     """Run the ReAct loop. Pass an ``AGUIStream`` to broadcast live
-    AG-UI events (run/step lifecycle, text, tool calls, state) as it goes."""
+    AG-UI events (run/step lifecycle, text, tool calls, state) as it goes.
+
+    With ``verbose=True`` and an ``emit`` callable (``emit(line)``), each
+    step's raw model reply, tool call, and observation is reported as the
+    agent runs — the terminal-and-transcript equivalent of the stream,
+    for ``--verbose``/``--save``.
+    """
     desk = Desktop()
     if stream:
         stream.run_started(task=task)
@@ -167,6 +207,10 @@ def run_agent(
                 json_patch_replace("/jobs", stream.snapshot_desktop(desk)["jobs"])
             )
 
+    def _trace(line):
+        if verbose and emit is not None:
+            emit(line)
+
     messages = [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": task},
@@ -176,6 +220,7 @@ def run_agent(
             if stream:
                 stream.step_started(f"step-{step + 1}")
             reply = ask_model(messages, config).strip()
+            _trace(f"> {reply}")
             messages.append({"role": "assistant", "content": reply})
             if reply.startswith("DONE:"):
                 final = reply[len("DONE:") :].strip()
@@ -193,6 +238,7 @@ def run_agent(
                     stream.text_message(bad)
                     stream.run_finished(result=bad)
                 return bad
+            _trace(f"$ {tool} {json.dumps(args)}")
             try:
                 tc_id = stream.tool_call_start(tool) if stream else None
                 if stream:
@@ -221,6 +267,7 @@ def run_agent(
                 if stream:
                     stream.tool_call_end(tc_id)
                     stream.tool_call_result(tc_id, observation)
+            _trace(f"< {_short(observation)}")
             messages.append(
                 {"role": "user", "content": f"observation:\n{observation[:4000]}"}
             )
@@ -252,6 +299,17 @@ def main(argv: list[str] | None = None) -> str:
         help="OpenAI-compatible base URL (or OPENAI_BASE_URL)",
     )
     parser.add_argument("--max-steps", type=int, default=12)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print each step's model reply, tool call, and observation as the agent runs",
+    )
+    parser.add_argument(
+        "--save",
+        metavar="FILE",
+        default=None,
+        help="also write the rendered transcript to FILE (UTF-8) as the run goes",
+    )
     args = parser.parse_args(argv)
     task = args.task or "list the files in the workspace"
     config = LLMConfig(
@@ -259,8 +317,24 @@ def main(argv: list[str] | None = None) -> str:
         base_url=args.base_url.rstrip("/"),
         model=args.model,
     )
-    return run_agent(task, max_steps=args.max_steps, config=config)
+    with _open_transcript(args.save) as log:
+
+        def emit(text="", end="\n"):
+            """Print one chunk to the terminal, mirroring it into the transcript."""
+            print(text, end=end, flush=True)
+            if log is not None:
+                log.write(text + end)
+
+        final = run_agent(
+            task,
+            max_steps=args.max_steps,
+            config=config,
+            verbose=args.verbose,
+            emit=emit,
+        )
+        emit(final)  # the result line, mirrored into the transcript
+        return final
 
 
 if __name__ == "__main__":
-    print(main())
+    main()
